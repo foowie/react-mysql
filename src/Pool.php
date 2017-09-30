@@ -45,6 +45,9 @@ class Pool implements Queryable {
 	/** @var int */
 	protected $waitTimeout;
 
+	/** @var Promise\Deferred|null */
+	protected $closeDeferred;
+
 	public function __construct(int $maxConnections, ConnectionFactory $connectionFactory, LoopInterface $loop) {
 		$this->connectionFactory = $connectionFactory;
 		$this->loop = $loop;
@@ -99,7 +102,13 @@ class Pool implements Queryable {
 
 	public function release(Connection $connection) {
 	    if (!$this->availableConnections->contains($connection) && $this->usedConnections->contains($connection->getMysqli())) {
-	    	if (empty($this->queuedConnectionRequests)) {
+	    	if ($this->closeDeferred !== null) {
+	    		$this->closeAndRemoveConnection($connection);
+	    		if ($this->connectionCount === 0) {
+	    			$this->closeDeferred->resolve();
+				    $this->closeDeferred = null;
+			    }
+		    } else if (empty($this->queuedConnectionRequests)) {
 	    		$this->usedConnections->detach($connection->getMysqli());
 	    	    $this->availableConnections->attach($connection);
 			    $this->updateTimer();
@@ -162,6 +171,52 @@ class Pool implements Queryable {
 				$this->closeAndRemoveConnection($connection);
 			}
 		}
+	}
+
+	public function waitAndClose(int $maxTimeout = null): Promise\PromiseInterface {
+		if ($this->closeDeferred !== null) {
+			return $this->closeDeferred->promise();
+		}
+		/** @var Connection $connection */
+		foreach ($this->availableConnections as $connection) {
+	    	$this->closeAndRemoveConnection($connection);
+	    }
+
+	    if ($maxTimeout === 0) {
+	    	foreach ($this->usedConnections as $mysqli) {
+	    		/** @var Connection $connection */
+	    		$connection = $this->usedConnections[$mysqli];
+	    		$this->closeAndRemoveConnection($connection);
+			    // todo: send information to promise that connection was closed?
+		    }
+		    return Promise\resolve();
+	    }
+
+	    if ($this->connectionCount > 0) {
+	    	$this->closeDeferred = new Promise\Deferred();
+		    if ($maxTimeout !== null) {
+			    $this->loop->addTimer($maxTimeout, function() {
+			    	if ($this->closeDeferred === null) {
+			    		return;
+				    }
+				    foreach ($this->usedConnections as $mysqli) {
+					    /** @var Connection $connection */
+					    $connection = $this->usedConnections[$mysqli];
+					    $this->closeAndRemoveConnection($connection);
+					    // todo: send information to promise that connection was closed?
+				    }
+				    /** @var Connection $connection */
+				    foreach ($this->availableConnections as $connection) {
+					    $this->closeAndRemoveConnection($connection);
+				    }
+				    $this->closeDeferred->resolve();
+				    $this->closeDeferred = null;
+			    });
+		    }
+	    	return $this->closeDeferred->promise();
+	    }
+
+    	return Promise\resolve();
 	}
 
 	protected function updateTimer() {
