@@ -221,6 +221,10 @@ class Connection implements Queryable {
 			return new UniqueConstraintViolationException($message, $code);
 		}
 
+		if (in_array($code, Pool::MYSQL_CONNECTION_ISSUE_CODES, true)) {
+			return new ConnectionException($message, $code);
+		}
+
 		return new QueryException($message, $code);
 	}
 	
