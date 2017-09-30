@@ -108,6 +108,8 @@ class Pool implements Queryable {
 	    			$this->closeDeferred->resolve();
 				    $this->closeDeferred = null;
 			    }
+		    } else if(in_array(mysqli_errno($connection->getMysqli()), self::MYSQL_CONNECTION_ISSUE_CODES, true)) {
+			    $this->closeAndRemoveConnection($connection);
 		    } else if (empty($this->queuedConnectionRequests)) {
 	    		$this->usedConnections->detach($connection->getMysqli());
 	    	    $this->availableConnections->attach($connection);
@@ -167,9 +169,6 @@ class Pool implements Queryable {
 			/** @var Connection $connection */
 			$connection = $this->usedConnections[$error];
 			$connection->processQueryError();
-			if (in_array($errorCode, self::MYSQL_CONNECTION_ISSUE_CODES, true)) {
-				$this->closeAndRemoveConnection($connection);
-			}
 		}
 	}
 
