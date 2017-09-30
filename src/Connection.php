@@ -114,7 +114,7 @@ class Connection implements Queryable {
 	}
 
 	public function processQueryResult() {
-		$result = mysqli_reap_async_query($this->mysqli);
+		$result = @mysqli_reap_async_query($this->mysqli);
 
 		if ($this->deferred === null) {
 			throw new InvalidStateException('No deferred for query result');
