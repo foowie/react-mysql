@@ -214,7 +214,14 @@ class Connection implements Queryable {
 	 * @todo: detect and throw ConnectionException
 	 */
 	protected function createException(): \Exception {
-		return new QueryException(mysqli_error($this->mysqli), mysqli_errno($this->mysqli));
+		$message = mysqli_error($this->mysqli);
+		$code = mysqli_errno($this->mysqli);
+
+		if ($code === 1062) {
+			return new UniqueConstraintViolationException($message, $code);
+		}
+
+		return new QueryException($message, $code);
 	}
 	
 }
