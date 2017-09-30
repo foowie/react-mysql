@@ -61,7 +61,7 @@ class Pool implements Queryable {
 			$this->loop->addPeriodicTimer(1, function() {
 				$limit = time() - $this->waitTimeout + 5;
 				/** @var Connection $availableConnection */
-				foreach ($this->availableConnections as $availableConnection) {
+				foreach (iterator_to_array($this->availableConnections) as $availableConnection) {
 					if ($availableConnection->getLastUseTimestamp() < $limit) {
 						$this->closeAndRemoveConnection($availableConnection);
 					}
@@ -178,12 +178,12 @@ class Pool implements Queryable {
 			return $this->closeDeferred->promise();
 		}
 		/** @var Connection $connection */
-		foreach ($this->availableConnections as $connection) {
+		foreach (iterator_to_array($this->availableConnections) as $connection) {
 	    	$this->closeAndRemoveConnection($connection);
 	    }
 
 	    if ($maxTimeout === 0) {
-	    	foreach ($this->usedConnections as $mysqli) {
+	    	foreach (iterator_to_array($this->usedConnections) as $mysqli) {
 	    		/** @var Connection $connection */
 	    		$connection = $this->usedConnections[$mysqli];
 	    		$this->closeAndRemoveConnection($connection);
@@ -199,14 +199,14 @@ class Pool implements Queryable {
 			    	if ($this->closeDeferred === null) {
 			    		return;
 				    }
-				    foreach ($this->usedConnections as $mysqli) {
+				    foreach (iterator_to_array($this->usedConnections) as $mysqli) {
 					    /** @var Connection $connection */
 					    $connection = $this->usedConnections[$mysqli];
 					    $this->closeAndRemoveConnection($connection);
 					    // todo: send information to promise that connection was closed?
 				    }
 				    /** @var Connection $connection */
-				    foreach ($this->availableConnections as $connection) {
+				    foreach (iterator_to_array($this->availableConnections) as $connection) {
 					    $this->closeAndRemoveConnection($connection);
 				    }
 				    $this->closeDeferred->resolve();
