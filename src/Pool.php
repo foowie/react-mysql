@@ -13,7 +13,7 @@ use React\Promise;
  */
 class Pool implements Queryable {
 
-	const MYSQL_CONNECTION_ISSUE_CODES = [2006, 2008, 2013, 2055];
+	const MYSQL_CONNECTION_ISSUE_CODES = [1053, 2006, 2008, 2013, 2055];
 
 	/** @var ConnectionFactory */
 	protected $connectionFactory;
