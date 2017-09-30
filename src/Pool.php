@@ -98,7 +98,7 @@ class Pool implements Queryable {
 	}
 
 	public function release(Connection $connection) {
-	    if (!$this->availableConnections->contains($connection)) {
+	    if (!$this->availableConnections->contains($connection) && $this->usedConnections->contains($connection->getMysqli())) {
 	    	if (empty($this->queuedConnectionRequests)) {
 	    		$this->usedConnections->detach($connection->getMysqli());
 	    	    $this->availableConnections->attach($connection);
