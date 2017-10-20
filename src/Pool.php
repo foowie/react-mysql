@@ -55,9 +55,8 @@ class Pool implements Queryable {
 		$this->availableConnections = [];
 		$this->usedConnections = new \SplObjectStorage();
 
-		// todo: make timeout & interval configurable
 		$this->query("SHOW VARIABLES WHERE VARIABLE_NAME='wait_timeout'")->then(function(Result $result) {
-			$this->waitTimeout = $result->getSingleResult()['Value'];
+			$this->waitTimeout = $this->waitTimeout === null ? $result->getSingleResult()['Value'] : min($this->waitTimeout, $result->getSingleResult()['Value']);
 			$this->loop->addPeriodicTimer(1, function() {
 				$limit = time() - $this->waitTimeout + 5;
 				/** @var Connection $availableConnection */
@@ -68,6 +67,17 @@ class Pool implements Queryable {
 				}
 			});
 		});
+	}
+
+	public function setIdleConnectionTimeout(int $timeout) {
+		if ($timeout < 10) {
+			return;
+		}
+		if ($this->waitTimeout === null) {
+			$this->waitTimeout = $timeout;
+		} else if ($timeout < $this->waitTimeout) {
+	    	$this->waitTimeout = $timeout;
+	    }
 	}
 
 
