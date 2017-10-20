@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace Foowie\ReactMySql;
 
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
+use Psr\Log\NullLogger;
 use React\Promise;
 use React\Promise\PromiseInterface;
 
 /**
  * @author Daniel Robenek <daniel.robenek@me.com>
  */
-class Connection implements Queryable {
+class Connection implements Queryable, LoggerAwareInterface {
+
+	use LoggerAwareTrait;
 
 	/** @var int */
 	protected $id;
@@ -37,6 +42,7 @@ class Connection implements Queryable {
 		$this->mysqli = $mysqli;
 		$this->id = $id ?? random_int(0, PHP_INT_MAX);
 		$this->lastUseTimestamp = time();
+		$this->logger = new NullLogger();
 
 		$this->escapeTypes = [
 			':' => [$this, 'escapeDetect'],
@@ -230,6 +236,7 @@ class Connection implements Queryable {
 		}
 
 		if (in_array($code, Pool::MYSQL_CONNECTION_ISSUE_CODES, true)) {
+			$this->logger->info('MySQL connection [{id}] issue: {message} with code {code}', ['id' => $this->id, 'message' => $message, 'code' => $code]);
 			return new ConnectionException($message, $code);
 		}
 

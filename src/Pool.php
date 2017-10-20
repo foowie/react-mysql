@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Foowie\ReactMySql;
 
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerAwareTrait;
+use Psr\Log\NullLogger;
 use React\EventLoop\LoopInterface;
 use React\EventLoop\Timer\TimerInterface;
 use React\Promise;
@@ -11,7 +14,9 @@ use React\Promise;
 /**
  * @author Daniel Robenek <daniel.robenek@me.com>
  */
-class Pool implements Queryable {
+class Pool implements Queryable, LoggerAwareInterface {
+
+	use LoggerAwareTrait;
 
 	const MYSQL_CONNECTION_ISSUE_CODES = [1053, 2006, 2008, 2013, 2055];
 
@@ -54,17 +59,21 @@ class Pool implements Queryable {
 		$this->maxConnections = $maxConnections;
 		$this->availableConnections = [];
 		$this->usedConnections = new \SplObjectStorage();
+		$this->logger = new NullLogger();
 
-		$this->query("SHOW VARIABLES WHERE VARIABLE_NAME='wait_timeout'")->then(function(Result $result) {
-			$this->waitTimeout = $this->waitTimeout === null ? $result->getSingleResult()['Value'] : min($this->waitTimeout, $result->getSingleResult()['Value']);
-			$this->loop->addPeriodicTimer(1, function() {
-				$limit = time() - $this->waitTimeout + 5;
-				/** @var Connection $availableConnection */
-				foreach ($this->availableConnections as $availableConnection) {
-					if ($availableConnection->getLastUseTimestamp() < $limit) {
-						$this->closeAndRemoveConnection($availableConnection);
+		$loop->futureTick(function() {
+			$this->query("SHOW VARIABLES WHERE VARIABLE_NAME='wait_timeout'")->then(function(Result $result) {
+				$this->waitTimeout = $this->waitTimeout === null ? $result->getSingleResult()['Value'] : min($this->waitTimeout, $result->getSingleResult()['Value']);
+				$this->logger->debug('MySQL Pool default idle connection timeout set to {sec} sec', ['sec' => $this->waitTimeout]);
+				$this->loop->addPeriodicTimer(1, function() {
+					$limit = time() - $this->waitTimeout + 5;
+					/** @var Connection $availableConnection */
+					foreach ($this->availableConnections as $availableConnection) {
+						if ($availableConnection->getLastUseTimestamp() < $limit) {
+							$this->closeAndRemoveConnection($availableConnection);
+						}
 					}
-				}
+				});
 			});
 		});
 	}
@@ -76,6 +85,7 @@ class Pool implements Queryable {
 		if ($this->waitTimeout === null) {
 			$this->waitTimeout = $timeout;
 		} else if ($timeout < $this->waitTimeout) {
+	    	$this->logger->debug('MySQL Pool idle connection timeout set to {sec} sec', ['sec' => $timeout]);
 	    	$this->waitTimeout = $timeout;
 	    }
 	}
@@ -98,6 +108,8 @@ class Pool implements Queryable {
 
 		$this->connectionCount++;
 		return $this->connectionFactory->create()->then(function(Connection $connection) {
+			$connection->setLogger($this->logger);
+			$this->logger->debug('New MySQL connection [{id}] created', ['id' => $connection->getId()]);
 			$this->usedConnections->attach($connection->getMysqli(), $connection);
 			$connection->setReleaseCallback([$this, 'release']);
 			$this->updateTimer();
@@ -248,6 +260,7 @@ class Pool implements Queryable {
 			$this->usedConnections->detach($connection->getMysqli());
 		}
 		$this->connectionCount--;
+		$this->logger->debug('MySQL connection [{id}] closed', ['id' => $connection->getId()]);
 	}
 
 }
