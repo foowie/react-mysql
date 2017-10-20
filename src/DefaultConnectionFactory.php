@@ -43,6 +43,9 @@ class DefaultConnectionFactory implements ConnectionFactory {
 	/** @var string */
 	protected $timezone;
 
+	/** @var int */
+	protected $currentConnectionId = 0;
+
 	public function __construct(string $username, string $password, string $database = null, string $host = 'localhost', int $port = 3306) {
 		if (!extension_loaded('mysqli')) {
 			throw new ConnectionException('PHP extension mysqli is not loaded');
@@ -93,8 +96,7 @@ class DefaultConnectionFactory implements ConnectionFactory {
 				return Promise\reject(new ConnectionException(mysqli_error($connection), $errno));
 			}
 		}
-
-		return Promise\resolve(new Connection($connection));
+		return Promise\resolve(new Connection($connection, $this->currentConnectionId++));
 	}
 
 	public function setHost(string $host) {

@@ -12,6 +12,9 @@ use React\Promise\PromiseInterface;
  */
 class Connection implements Queryable {
 
+	/** @var int */
+	protected $id;
+
 	/** @var \mysqli */
 	protected $mysqli;
 
@@ -30,8 +33,9 @@ class Connection implements Queryable {
 	/** @var string[] */
 	protected $escapeTypes;
 
-	public function __construct(\mysqli $mysqli) {
+	public function __construct(\mysqli $mysqli, int $id = null) {
 		$this->mysqli = $mysqli;
+		$this->id = $id ?? random_int(0, PHP_INT_MAX);
 		$this->lastUseTimestamp = time();
 
 		$this->escapeTypes = [
@@ -55,6 +59,10 @@ class Connection implements Queryable {
 			'%like:' => function(string $val) { return $this->escapeLike($val, -1); },
 			'like%:' => function(string $val) { return $this->escapeLike($val, 1); },
 		];
+	}
+
+	public function getId(): int {
+		return $this->id;
 	}
 
 	public function setEscapeType(string $key, callable $callback) {

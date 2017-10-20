@@ -24,8 +24,8 @@ class Pool implements Queryable {
 	/** @var int */
 	protected $maxConnections;
 
-	/** @var \SplObjectStorage */
-	protected $availableConnections; // todo: SplObjectStorage is FIFO, use LIFO to get unused connections released!
+	/** @var Connection[] */
+	protected $availableConnections;
 
 	/** @var \SplObjectStorage */
 	protected $usedConnections;
@@ -52,7 +52,7 @@ class Pool implements Queryable {
 		$this->connectionFactory = $connectionFactory;
 		$this->loop = $loop;
 		$this->maxConnections = $maxConnections;
-		$this->availableConnections = new \SplObjectStorage();
+		$this->availableConnections = [];
 		$this->usedConnections = new \SplObjectStorage();
 
 		// todo: make timeout & interval configurable
@@ -61,7 +61,7 @@ class Pool implements Queryable {
 			$this->loop->addPeriodicTimer(1, function() {
 				$limit = time() - $this->waitTimeout + 5;
 				/** @var Connection $availableConnection */
-				foreach (iterator_to_array($this->availableConnections) as $availableConnection) {
+				foreach ($this->availableConnections as $availableConnection) {
 					if ($availableConnection->getLastUseTimestamp() < $limit) {
 						$this->closeAndRemoveConnection($availableConnection);
 					}
@@ -72,11 +72,9 @@ class Pool implements Queryable {
 
 
 	public function getConnection(): Promise\PromiseInterface {
-		$this->availableConnections->rewind();
-		if ($this->availableConnections->valid()) {
+		if (!empty($this->availableConnections)) {
 			/** @var Connection $connection */
-			$connection = $this->availableConnections->current();
-			$this->availableConnections->detach($connection);
+			$connection = array_pop($this->availableConnections);
 			$this->usedConnections->attach($connection->getMysqli(), $connection);
 			$this->updateTimer();
 			return Promise\resolve($connection);
@@ -101,7 +99,7 @@ class Pool implements Queryable {
 	}
 
 	public function release(Connection $connection) {
-	    if (!$this->availableConnections->contains($connection) && $this->usedConnections->contains($connection->getMysqli())) {
+	    if (!isset($this->availableConnections[$connection->getId()]) && $this->usedConnections->contains($connection->getMysqli())) {
 	    	if ($this->closeDeferred !== null) {
 	    		$this->closeAndRemoveConnection($connection);
 	    		if ($this->connectionCount === 0) {
@@ -112,7 +110,7 @@ class Pool implements Queryable {
 			    $this->closeAndRemoveConnection($connection);
 		    } else if (empty($this->queuedConnectionRequests)) {
 	    		$this->usedConnections->detach($connection->getMysqli());
-	    	    $this->availableConnections->attach($connection);
+	    		$this->availableConnections[$connection->getId()] = $connection;
 			    $this->updateTimer();
 		    } else {
 			    $deferred = array_shift($this->queuedConnectionRequests);
@@ -177,7 +175,7 @@ class Pool implements Queryable {
 			return $this->closeDeferred->promise();
 		}
 		/** @var Connection $connection */
-		foreach (iterator_to_array($this->availableConnections) as $connection) {
+		foreach ($this->availableConnections as $connection) {
 	    	$this->closeAndRemoveConnection($connection);
 	    }
 
@@ -205,7 +203,7 @@ class Pool implements Queryable {
 					    // todo: send information to promise that connection was closed?
 				    }
 				    /** @var Connection $connection */
-				    foreach (iterator_to_array($this->availableConnections) as $connection) {
+				    foreach ($this->availableConnections as $connection) {
 					    $this->closeAndRemoveConnection($connection);
 				    }
 				    $this->closeDeferred->resolve();
@@ -233,8 +231,8 @@ class Pool implements Queryable {
 
 	protected function closeAndRemoveConnection(Connection $connection) {
 		mysqli_close($connection->getMysqli());
-		if ($this->availableConnections->contains($connection)) {
-			$this->availableConnections->detach($connection);
+		if (isset($this->availableConnections[$connection->getId()])) {
+			unset($this->availableConnections[$connection->getId()]);
 		}
 		if ($this->usedConnections->contains($connection->getMysqli())) {
 			$this->usedConnections->detach($connection->getMysqli());
