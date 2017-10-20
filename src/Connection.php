@@ -48,16 +48,27 @@ class Connection implements Queryable, LoggerAwareInterface {
 			':' => [$this, 'escapeDetect'],
 			'detect:' => [$this, 'escapeDetect'],
 			't:' => [$this, 'escapeText'],
+			'ta:' => [$this, 'escapeTextArray'],
 			'text:' => [$this, 'escapeText'],
+			'texts:' => [$this, 'escapeTextArray'],
 			'n:' => function($val) { return $val; },
+			'na:' => function(array $val) { return implode(',', $val); },
 			'number:' => function($val) { return $val; },
+			'numbers:' => function(array $val) { return implode(',', $val); },
 			'b:' => [$this, 'escapeBool'],
+			'ba:' => [$this, 'escapeBoolArray'],
 			'bool:' => [$this, 'escapeBool'],
+			'bools:' => [$this, 'escapeBoolArray'],
 			'd:' => [$this, 'escapeDate'],
+			'da:' => [$this, 'escapeDateArray'],
 			'date:' => [$this, 'escapeDate'],
+			'dates:' => [$this, 'escapeDateArray'],
 			'dt:' => [$this, 'escapeDateTime'],
+			'dta:' => [$this, 'escapeDateTimeArray'],
 			'datetime:' => [$this, 'escapeDateTime'],
+			'datetimes:' => [$this, 'escapeDateTimeArray'],
 			'binary:' => [$this, 'escapeBinary'],
+			'binaries:' => [$this, 'escapeBinaryArray'],
 			'id:' => [$this, 'escapeIdentifier'],
 			'table:' => [$this, 'escapeIdentifier'],
 			'field:' => [$this, 'escapeIdentifier'],
@@ -182,6 +193,9 @@ class Connection implements Queryable, LoggerAwareInterface {
 		if (is_bool($value)) {
 			return $this->escapeBool($value);
 		}
+		if (is_array($value)) {
+			return implode(',', array_map([$this, 'escapeDetect'], $value));
+		}
 		throw new \InvalidArgumentException('Unknown type of argument');
 	}
 
@@ -189,8 +203,16 @@ class Connection implements Queryable, LoggerAwareInterface {
 		return "'" . mysqli_real_escape_string($this->mysqli, $value) . "'";
 	}
 
+	public function escapeTextArray(array $values): string {
+		return implode(',', array_map([$this, 'escapeText'], $values));
+	}
+
 	public function escapeBinary(string $value): string {
 		return "_binary'" . mysqli_real_escape_string($this->mysqli, $value) . "'";
+	}
+
+	public function escapeBinaryArray(array $values): string {
+		return implode(',', array_map([$this, 'escapeBinary'], $values));
 	}
 
 	public function escapeIdentifier(string $value): string {
@@ -201,12 +223,24 @@ class Connection implements Queryable, LoggerAwareInterface {
 		return $value ? '1' : '0';
 	}
 
+	public function escapeBoolArray(array $values): string {
+		return implode(',', array_map([$this, 'escapeBool'], $values));
+	}
+
 	public function escapeDate(\DateTimeInterface $value): string {
 		return $value->format("'Y-m-d'");
 	}
 
+	public function escapeDateArray(array $values): string {
+		return implode(',', array_map([$this, 'escapeDate'], $values));
+	}
+
 	public function escapeDateTime(\DateTimeInterface $value): string {
 		return $value->format("'Y-m-d H:i:s.u'");
+	}
+
+	public function escapeDateTimeArray(array $values): string {
+		return implode(',', array_map([$this, 'escapeDateTime'], $values));
 	}
 
 	public function escapeLike(string $value, int $pos): string {
