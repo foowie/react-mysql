@@ -51,10 +51,10 @@ class Connection implements Queryable, LoggerAwareInterface {
 			'ta:' => [$this, 'escapeTextArray'],
 			'text:' => [$this, 'escapeText'],
 			'texts:' => [$this, 'escapeTextArray'],
-			'n:' => function($val) { return $val; },
-			'na:' => function(array $val) { return implode(',', $val); },
-			'number:' => function($val) { return $val; },
-			'numbers:' => function(array $val) { return implode(',', $val); },
+			'n:' => function($val) { return $val === null ? 'NULL' : $val; },
+			'na:' => function(array $val) { return implode(',', array_map(function($item) { return $item === null ? 'NULL' : $item; }, $val)); },
+			'number:' => function($val) { return $val === null ? 'NULL' : $val; },
+			'numbers:' => function(array $val) { return implode(',', array_map(function($item) { return $item === null ? 'NULL' : $item; }, $val)); },
 			'b:' => [$this, 'escapeBool'],
 			'ba:' => [$this, 'escapeBoolArray'],
 			'bool:' => [$this, 'escapeBool'],
@@ -83,7 +83,7 @@ class Connection implements Queryable, LoggerAwareInterface {
 	}
 
 	public function setEscapeType(string $key, callable $callback) {
-	    $this->escapeTypes[$key] = $callback;
+		$this->escapeTypes[$key] = $callback;
 	}
 
 	public function queryWithArgs(string $query, array $args): PromiseInterface {
@@ -169,18 +169,21 @@ class Connection implements Queryable, LoggerAwareInterface {
 	}
 
 	public function beginTransaction(): PromiseInterface {
-	    return $this->query('START TRANSACTION');
+		return $this->query('START TRANSACTION');
 	}
 
 	public function commit(): PromiseInterface {
-	    return $this->query('COMMIT');
+		return $this->query('COMMIT');
 	}
 
 	public function rollback(): PromiseInterface {
-	    return $this->query('ROLLBACK');
+		return $this->query('ROLLBACK');
 	}
 
 	public function escapeDetect($value) {
+		if ($value === null) {
+			return 'NULL';
+		}
 		if (is_numeric($value)) {
 			return $value;
 		}
@@ -199,16 +202,16 @@ class Connection implements Queryable, LoggerAwareInterface {
 		throw new \InvalidArgumentException('Unknown type of argument');
 	}
 
-	public function escapeText(string $value): string {
-		return "'" . mysqli_real_escape_string($this->mysqli, $value) . "'";
+	public function escapeText(string $value = null): string {
+		return $value === null ? 'NULL' : "'" . mysqli_real_escape_string($this->mysqli, $value) . "'";
 	}
 
 	public function escapeTextArray(array $values): string {
 		return implode(',', array_map([$this, 'escapeText'], $values));
 	}
 
-	public function escapeBinary(string $value): string {
-		return "_binary'" . mysqli_real_escape_string($this->mysqli, $value) . "'";
+	public function escapeBinary(string $value = null): string {
+		return $value === null ? 'NULL' : "_binary'" . mysqli_real_escape_string($this->mysqli, $value) . "'";
 	}
 
 	public function escapeBinaryArray(array $values): string {
@@ -219,24 +222,24 @@ class Connection implements Queryable, LoggerAwareInterface {
 		return '`' . str_replace('`', '``', $value) . '`';
 	}
 
-	public function escapeBool(bool $value): string {
-		return $value ? '1' : '0';
+	public function escapeBool(bool $value = null): string {
+		return $value === null ? 'NULL' : ($value ? '1' : '0');
 	}
 
 	public function escapeBoolArray(array $values): string {
 		return implode(',', array_map([$this, 'escapeBool'], $values));
 	}
 
-	public function escapeDate(\DateTimeInterface $value): string {
-		return $value->format("'Y-m-d'");
+	public function escapeDate(\DateTimeInterface $value = null): string {
+		return $value === null ? 'NULL' : $value->format("'Y-m-d'");
 	}
 
 	public function escapeDateArray(array $values): string {
 		return implode(',', array_map([$this, 'escapeDate'], $values));
 	}
 
-	public function escapeDateTime(\DateTimeInterface $value): string {
-		return $value->format("'Y-m-d H:i:s.u'");
+	public function escapeDateTime(\DateTimeInterface $value = null): string {
+		return $value === null ? 'NULL' : $value->format("'Y-m-d H:i:s.u'");
 	}
 
 	public function escapeDateTimeArray(array $values): string {
@@ -249,9 +252,9 @@ class Connection implements Queryable, LoggerAwareInterface {
 	}
 
 	public function release() {
-	    if ($this->releaseCallback !== null) {
-	    	call_user_func($this->releaseCallback, $this);
-	    }
+		if ($this->releaseCallback !== null) {
+			call_user_func($this->releaseCallback, $this);
+		}
 	}
 
 	public function setReleaseCallback(callable $releaseCallback) {
@@ -276,5 +279,5 @@ class Connection implements Queryable, LoggerAwareInterface {
 
 		return new QueryException($message, $code);
 	}
-	
+
 }
