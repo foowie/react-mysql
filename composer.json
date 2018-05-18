@@ -2,6 +2,7 @@
     "name": "foowie/react-mysql",
     "require": {
         "php": ">=7.0",
+        "ext-mysqli": "*",
         "react/promise": "^2.0",
         "react/event-loop": "^0.4",
         "psr/log": "^1.0"
