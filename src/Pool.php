@@ -78,6 +78,10 @@ class Pool implements Queryable, LoggerAwareInterface {
 		});
 	}
 
+	public function setTimerInterval(float $timerInterval) {
+		$this->timerInterval = $timerInterval;
+	}
+
 	public function setIdleConnectionTimeout(int $timeout) {
 		if ($timeout < 10) {
 			return;
