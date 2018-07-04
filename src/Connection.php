@@ -176,8 +176,28 @@ class Connection implements Queryable, LoggerAwareInterface {
 		return $this->query('COMMIT');
 	}
 
+	public function commitAndRelease(): PromiseInterface {
+		return $this->commit()->then(function($result) {
+			$this->release();
+			return $result;
+		}, function($e) {
+			$this->release();
+			return Promise\reject($e);
+		});
+	}
+
 	public function rollback(): PromiseInterface {
 		return $this->query('ROLLBACK');
+	}
+
+	public function rollbackAndRelease(): PromiseInterface {
+		return $this->rollback()->then(function($result) {
+			$this->release();
+			return $result;
+		}, function($e) {
+			$this->release();
+			return Promise\reject($e);
+		});
 	}
 
 	public function escapeDetect($value) {
