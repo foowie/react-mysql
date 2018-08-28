@@ -96,6 +96,7 @@ class DefaultConnectionFactory implements ConnectionFactory {
 				return Promise\reject(new ConnectionException(mysqli_error($connection), $errno));
 			}
 		}
+
 		return Promise\resolve(new Connection($connection, $this->currentConnectionId++));
 	}
 

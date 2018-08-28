@@ -86,6 +86,11 @@ class Connection implements Queryable, LoggerAwareInterface {
 		$this->escapeTypes[$key] = $callback;
 	}
 
+	/**
+	 * @param string $query
+	 * @param array $args
+	 * @return Promise\ExtendedPromiseInterface
+	 */
 	public function queryWithArgs(string $query, array $args): PromiseInterface {
 		foreach ($args as $arg => $value) {
 			$pos = strpos($arg, ':');
@@ -102,6 +107,10 @@ class Connection implements Queryable, LoggerAwareInterface {
 		return $this->query($query);
 	}
 
+	/**
+	 * @param string $query
+	 * @return Promise\ExtendedPromiseInterface
+	 */
 	public function query(string $query): PromiseInterface {
 		if ($this->deferred !== null) {
 			throw new InvalidStateException('Connection already in use');
@@ -156,7 +165,7 @@ class Connection implements Queryable, LoggerAwareInterface {
 		}
 
 	}
-	
+
 	public function processQueryError() {
 		if ($this->deferred === null) {
 			throw new InvalidStateException('No deferred for query result');
@@ -168,14 +177,23 @@ class Connection implements Queryable, LoggerAwareInterface {
 		$deferred->reject($this->createException());
 	}
 
+	/**
+	 * @return Promise\ExtendedPromiseInterface
+	 */
 	public function beginTransaction(): PromiseInterface {
 		return $this->query('START TRANSACTION');
 	}
 
+	/**
+	 * @return Promise\ExtendedPromiseInterface
+	 */
 	public function commit(): PromiseInterface {
 		return $this->query('COMMIT');
 	}
 
+	/**
+	 * @return Promise\ExtendedPromiseInterface
+	 */
 	public function commitAndRelease(): PromiseInterface {
 		return $this->commit()->then(function($result) {
 			$this->release();
@@ -186,10 +204,16 @@ class Connection implements Queryable, LoggerAwareInterface {
 		});
 	}
 
+	/**
+	 * @return Promise\ExtendedPromiseInterface
+	 */
 	public function rollback(): PromiseInterface {
 		return $this->query('ROLLBACK');
 	}
 
+	/**
+	 * @return Promise\ExtendedPromiseInterface
+	 */
 	public function rollbackAndRelease(): PromiseInterface {
 		return $this->rollback()->then(function($result) {
 			$this->release();

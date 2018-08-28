@@ -89,12 +89,15 @@ class Pool implements Queryable, LoggerAwareInterface {
 		if ($this->waitTimeout === null) {
 			$this->waitTimeout = $timeout;
 		} else if ($timeout < $this->waitTimeout) {
-	    	$this->logger->debug('MySQL Pool idle connection timeout set to {sec} sec', ['sec' => $timeout]);
-	    	$this->waitTimeout = $timeout;
-	    }
+			$this->logger->debug('MySQL Pool idle connection timeout set to {sec} sec', ['sec' => $timeout]);
+			$this->waitTimeout = $timeout;
+		}
 	}
 
 
+	/**
+	 * @return Promise\ExtendedPromiseInterface
+	 */
 	public function getConnection(): Promise\PromiseInterface {
 		if (!empty($this->availableConnections)) {
 			/** @var Connection $connection */
@@ -125,48 +128,57 @@ class Pool implements Queryable, LoggerAwareInterface {
 	}
 
 	public function release(Connection $connection) {
-	    if (!isset($this->availableConnections[$connection->getId()]) && $this->usedConnections->contains($connection->getMysqli())) {
-	    	if ($this->closeDeferred !== null) {
-	    		$this->closeAndRemoveConnection($connection);
-	    		if ($this->connectionCount === 0) {
-	    			$this->closeDeferred->resolve();
-				    $this->closeDeferred = null;
-			    }
-		    } else if(in_array(mysqli_errno($connection->getMysqli()), self::MYSQL_CONNECTION_ISSUE_CODES, true)) {
-			    $this->closeAndRemoveConnection($connection);
-		    } else if (empty($this->queuedConnectionRequests)) {
-	    		$this->usedConnections->detach($connection->getMysqli());
-	    		$this->availableConnections[$connection->getId()] = $connection;
-			    $this->updateTimer();
-		    } else {
-			    $deferred = array_shift($this->queuedConnectionRequests);
-			    $deferred->resolve($connection);
-		    }
-	    }
+		if (!isset($this->availableConnections[$connection->getId()]) && $this->usedConnections->contains($connection->getMysqli())) {
+			if ($this->closeDeferred !== null) {
+				$this->closeAndRemoveConnection($connection);
+				if ($this->connectionCount === 0) {
+					$this->closeDeferred->resolve();
+					$this->closeDeferred = null;
+				}
+			} else if(in_array(mysqli_errno($connection->getMysqli()), self::MYSQL_CONNECTION_ISSUE_CODES, true)) {
+				$this->closeAndRemoveConnection($connection);
+			} else if (empty($this->queuedConnectionRequests)) {
+				$this->usedConnections->detach($connection->getMysqli());
+				$this->availableConnections[$connection->getId()] = $connection;
+				$this->updateTimer();
+			} else {
+				$deferred = array_shift($this->queuedConnectionRequests);
+				$deferred->resolve($connection);
+			}
+		}
 	}
 
+	/**
+	 * @param string $query
+	 * @return Promise\ExtendedPromiseInterface
+	 */
 	public function query(string $query): Promise\PromiseInterface {
-	    return $this->getConnection()->then(function(Connection $connection) use ($query) {
-	    	return $connection->query($query)->then(function(Result $result) use ($connection) {
-	    		$connection->release();
-	    		return $result;
-		    }, function($e) use ($connection) {
-			    $connection->release();
-	    		return Promise\reject($e);
-		    });
-	    });
+		return $this->getConnection()->then(function(Connection $connection) use ($query) {
+			return $connection->query($query)->then(function(Result $result) use ($connection) {
+				$connection->release();
+				return $result;
+			}, function($e) use ($connection) {
+				$connection->release();
+				return Promise\reject($e);
+			});
+		});
 	}
 
+	/**
+	 * @param string $query
+	 * @param array $args
+	 * @return Promise\ExtendedPromiseInterface
+	 */
 	public function queryWithArgs(string $query, array $args): Promise\PromiseInterface {
-	    return $this->getConnection()->then(function(Connection $connection) use ($query, $args) {
-	    	return $connection->queryWithArgs($query, $args)->then(function(Result $result) use ($connection) {
-	    		$connection->release();
-	    		return $result;
-		    }, function($e) use ($connection) {
-			    $connection->release();
-	    		return Promise\reject($e);
-		    });
-	    });
+		return $this->getConnection()->then(function(Connection $connection) use ($query, $args) {
+			return $connection->queryWithArgs($query, $args)->then(function(Result $result) use ($connection) {
+				$connection->release();
+				return $result;
+			}, function($e) use ($connection) {
+				$connection->release();
+				return Promise\reject($e);
+			});
+		});
 	}
 
 	public function checkConnectionResults() {
@@ -178,9 +190,9 @@ class Pool implements Queryable, LoggerAwareInterface {
 		}
 
 		$noResults = [];
-	    if (mysqli_poll($reads, $errors, $noResults, 0) === false) {
-	    	return; // todo
-	    }
+		if (mysqli_poll($reads, $errors, $noResults, 0) === false) {
+			return; // todo
+		}
 
 		foreach ($reads as $read) {
 			/** @var Connection $connection */
@@ -189,57 +201,61 @@ class Pool implements Queryable, LoggerAwareInterface {
 		}
 
 		foreach ($errors as $error) {
-	    	$errorCode = mysqli_errno($error);
+			$errorCode = mysqli_errno($error);
 			/** @var Connection $connection */
 			$connection = $this->usedConnections[$error];
 			$connection->processQueryError();
 		}
 	}
 
+	/**
+	 * @param int|null $maxTimeout
+	 * @return Promise\ExtendedPromiseInterface
+	 */
 	public function waitAndClose(int $maxTimeout = null): Promise\PromiseInterface {
 		if ($this->closeDeferred !== null) {
 			return $this->closeDeferred->promise();
 		}
 		/** @var Connection $connection */
 		foreach ($this->availableConnections as $connection) {
-	    	$this->closeAndRemoveConnection($connection);
-	    }
+			$this->closeAndRemoveConnection($connection);
+		}
 
-	    if ($maxTimeout === 0) {
-	    	foreach (iterator_to_array($this->usedConnections) as $mysqli) {
-	    		/** @var Connection $connection */
-	    		$connection = $this->usedConnections[$mysqli];
-	    		$this->closeAndRemoveConnection($connection);
-			    // todo: send information to promise that connection was closed?
-		    }
-		    return Promise\resolve();
-	    }
+		if ($maxTimeout === 0) {
+			foreach (iterator_to_array($this->usedConnections) as $mysqli) {
+				/** @var Connection $connection */
+				$connection = $this->usedConnections[$mysqli];
+				$this->closeAndRemoveConnection($connection);
+				// todo: send information to promise that connection was closed?
+			}
+			return Promise\resolve();
+		}
 
-	    if ($this->connectionCount > 0) {
-	    	$this->closeDeferred = new Promise\Deferred();
-		    if ($maxTimeout !== null) {
-			    $this->loop->addTimer($maxTimeout, function() {
-			    	if ($this->closeDeferred === null) {
-			    		return;
-				    }
-				    foreach (iterator_to_array($this->usedConnections) as $mysqli) {
-					    /** @var Connection $connection */
-					    $connection = $this->usedConnections[$mysqli];
-					    $this->closeAndRemoveConnection($connection);
-					    // todo: send information to promise that connection was closed?
-				    }
-				    /** @var Connection $connection */
-				    foreach ($this->availableConnections as $connection) {
-					    $this->closeAndRemoveConnection($connection);
-				    }
-				    $this->closeDeferred->resolve();
-				    $this->closeDeferred = null;
-			    });
-		    }
-	    	return $this->closeDeferred->promise();
-	    }
+		if ($this->connectionCount > 0) {
+			$this->closeDeferred = new Promise\Deferred();
+			if ($maxTimeout !== null) {
+				$this->loop->addTimer($maxTimeout, function() {
+					if ($this->closeDeferred === null) {
+						return;
+					}
+					foreach (iterator_to_array($this->usedConnections) as $mysqli) {
+						/** @var Connection $connection */
+						$connection = $this->usedConnections[$mysqli];
+						$this->closeAndRemoveConnection($connection);
+						// todo: send information to promise that connection was closed?
+					}
+					/** @var Connection $connection */
+					foreach ($this->availableConnections as $connection) {
+						$this->closeAndRemoveConnection($connection);
+					}
+					$this->closeDeferred->resolve();
+					$this->closeDeferred = null;
+				});
+			}
+			return $this->closeDeferred->promise();
+		}
 
-    	return Promise\resolve();
+		return Promise\resolve();
 	}
 
 	protected function updateTimer() {
