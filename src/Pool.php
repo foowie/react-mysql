@@ -8,7 +8,6 @@ use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use Psr\Log\NullLogger;
 use React\EventLoop\LoopInterface;
-use React\EventLoop\Timer\TimerInterface;
 use React\Promise;
 
 /**
@@ -41,7 +40,7 @@ class Pool implements Queryable, LoggerAwareInterface {
 	/** @var Promise\Deferred[] */
 	protected $queuedConnectionRequests = [];
 
-	/** @var TimerInterface */
+	/** @var \React\EventLoop\Timer\TimerInterface|\React\EventLoop\TimerInterface */
 	protected $connectionTimer;
 
 	/** @var float */
@@ -265,7 +264,11 @@ class Pool implements Queryable, LoggerAwareInterface {
 			}
 		} else {
 			if ($this->connectionTimer !== null) {
-				$this->connectionTimer->cancel();
+				if (method_exists($this->connectionTimer, 'cancel')) {
+					$this->connectionTimer->cancel();
+				} else {
+					\React\EventLoop\Loop::get()->cancelTimer($this->connectionTimer);
+				}
 				$this->connectionTimer = null;
 			}
 		}
