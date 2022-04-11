@@ -102,7 +102,7 @@ class Connection implements Queryable, LoggerAwareInterface {
 				$value = call_user_func($this->escapeTypes[$prefix], $value, $this->mysqli);
 				$arg = substr($arg, $pos + 1);
 			}
-			$query = str_replace(":$arg", $value, $query);
+			$query = str_replace(":$arg", (string)$value, $query);
 		}
 		return $this->query($query);
 	}
