@@ -31,8 +31,11 @@ class DefaultConnectionFactory implements ConnectionFactory {
 	/** @var string */
 	protected $database;
 
-	/** @var string[] */
+	/** @var string[]|int[]|bool[] */
 	protected $options = [MYSQLI_OPT_CONNECT_TIMEOUT => 5];
+
+	/** @var string[] */
+	protected $ssl = [];
 
 	/** @var string */
 	protected $charset = 'utf8';
@@ -61,12 +64,29 @@ class DefaultConnectionFactory implements ConnectionFactory {
 	public function create(): PromiseInterface {
 		mysqli_report(MYSQLI_REPORT_OFF);
 		$connection = mysqli_init();
+		$flags = 0;
+
+		if (!empty($this->ssl)) {
+			mysqli_ssl_set(
+				$connection,
+				$this->ssl['key'] ?? null,
+				$this->ssl['certificate'] ?? null,
+				$this->ssl['ca_certificate'] ?? null,
+				$this->ssl['ca_path'] ?? null,
+				$this->ssl['cipher_algos'] ?? null
+			);
+			if (array_key_exists(MYSQLI_OPT_SSL_VERIFY_SERVER_CERT, $this->options) && $this->options[MYSQLI_OPT_SSL_VERIFY_SERVER_CERT] === false) {
+				$flags = MYSQLI_CLIENT_SSL_DONT_VERIFY_SERVER_CERT;
+			} else {
+				$flags = MYSQLI_CLIENT_SSL;
+			}
+		}
 
 		foreach ($this->options as $key => $option) {
 			mysqli_options($connection, $key, $option);
 		}
 
-		@mysqli_real_connect($connection, $this->host, $this->username, $this->password, $this->database ?? '', $this->port ?? 0, $this->socket, 0);
+		@mysqli_real_connect($connection, $this->host, $this->username, $this->password, $this->database ?? '', $this->port ?? 0, $this->socket, $flags);
 
 		if ($errno = mysqli_connect_errno()) {
 			return Promise\reject(new ConnectionException(mysqli_connect_error(), $errno));
@@ -138,6 +158,30 @@ class DefaultConnectionFactory implements ConnectionFactory {
 
 	public function setTimezone(string $timezone) {
 		$this->timezone = $timezone;
+	}
+	
+	public function setSslKey(string $key) {
+	    $this->ssl['key'] = $key;
+	}
+
+	public function setSslCertificate(string $certificate) {
+	    $this->ssl['certificate'] = $certificate;
+	}
+
+	public function setSslCaCertificate(string $caCertificate) {
+	    $this->ssl['ca_certificate'] = $caCertificate;
+	}
+
+	public function setSslCaPath(string $caPath) {
+	    $this->ssl['ca_path'] = $caPath;
+	}
+
+	public function setSslCipherAlgos(string $cipherAlogs) {
+	    $this->ssl['cipher_algos'] = $cipherAlogs;
+	}
+
+	public function setSslVerifyServerCert(bool $shouldVerify = true) {
+	    $this->options[MYSQLI_OPT_SSL_VERIFY_SERVER_CERT] = $shouldVerify;
 	}
 
 }
