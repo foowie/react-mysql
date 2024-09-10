@@ -159,29 +159,56 @@ class DefaultConnectionFactory implements ConnectionFactory {
 	public function setTimezone(string $timezone) {
 		$this->timezone = $timezone;
 	}
-	
-	public function setSslKey(string $key) {
-	    $this->ssl['key'] = $key;
+
+	public function setSslKey(string $key = null) {
+		if ($key !== null) {
+			$this->ssl['key'] = $key;
+		} else {
+			unset($this->ssl['key']);
+		}
 	}
 
-	public function setSslCertificate(string $certificate) {
-	    $this->ssl['certificate'] = $certificate;
+	public function setSslCertificate(string $certificate = null) {
+		if ($certificate !== null) {
+			$this->ssl['certificate'] = $certificate;
+		} else {
+			unset($this->ssl['certificate']);
+		}
 	}
 
-	public function setSslCaCertificate(string $caCertificate) {
-	    $this->ssl['ca_certificate'] = $caCertificate;
+	public function setSslCaCertificate(string $caCertificate = null) {
+		if ($caCertificate !== null) {
+			$this->ssl['ca_certificate'] = $caCertificate;
+		} else {
+			unset($this->ssl['ca_certificate']);
+		}
 	}
 
-	public function setSslCaPath(string $caPath) {
-	    $this->ssl['ca_path'] = $caPath;
+	public function setSslCaPath(string $caPath = null) {
+		if ($caPath !== null) {
+			$this->ssl['ca_path'] = $caPath;
+		} else {
+			unset($this->ssl['ca_path']);
+		}
 	}
 
-	public function setSslCipherAlgos(string $cipherAlogs) {
-	    $this->ssl['cipher_algos'] = $cipherAlogs;
+	public function setSslCipherAlgos(string $cipherAlogs = null) {
+		if ($cipherAlogs !== null) {
+			$this->ssl['cipher_algos'] = $cipherAlogs;
+		} else {
+			unset($this->ssl['cipher_algos']);
+		}
 	}
 
-	public function setSslVerifyServerCert(bool $shouldVerify = true) {
-	    $this->options[MYSQLI_OPT_SSL_VERIFY_SERVER_CERT] = $shouldVerify;
+	/**
+	 * @param bool $shouldVerify
+	 */
+	public function setSslVerifyServerCert($shouldVerify = true) {
+		if ($shouldVerify !== null) {
+			$this->options[MYSQLI_OPT_SSL_VERIFY_SERVER_CERT] = (bool)$shouldVerify;
+		} else {
+			unset($this->options[MYSQLI_OPT_SSL_VERIFY_SERVER_CERT]);
+		}
 	}
 
 }
